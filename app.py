@@ -73,7 +73,7 @@ st.plotly_chart(fig_full, use_container_width=True)
 st.divider()
 
 # =========================
-# DISTRIBUSI (FULL WIDTH)
+# DISTRIBUSI
 # =========================
 st.subheader("📊 Distribusi Kategori Kinerja")
 
@@ -146,7 +146,7 @@ st.plotly_chart(fig_worst, use_container_width=True)
 st.divider()
 
 # =========================
-# DATA DETAIL + TAB
+# DATA DETAIL
 # =========================
 st.subheader("📋 Data Detail")
 
@@ -192,6 +192,8 @@ c4.metric("Timeliness", timeliness)
 
 st.warning("⚠️ Timeliness tidak dapat diukur karena dataset tidak memiliki timestamp.")
 
+st.divider()
+
 # =========================
 # INSIGHT
 # =========================
@@ -205,3 +207,79 @@ st.markdown(f"""
 - Mayoritas kategori: **{kategori_terbanyak}**
 - Prioritas: puskesmas dengan complete rate < 50%
 """)
+
+st.divider()
+
+# =========================
+# REKOMENDASI
+# =========================
+st.subheader("💡 Rekomendasi Intervensi")
+
+def generate_recommendation(row):
+    gap = row['kasus'] - row['pengobatan']
+
+    if row['kategori'] == 'Baik':
+        return "Pertahankan kinerja & jadikan benchmark"
+
+    elif row['kategori'] == 'Sedang':
+        if gap > 15:
+            return "Perlu peningkatan monitoring & follow-up pasien"
+        else:
+            return "Optimalkan edukasi kepatuhan pengobatan"
+
+    else:
+        if gap > 20:
+            return "Prioritas tinggi: investigasi & intervensi intensif (home visit)"
+        else:
+            return "Perlu peningkatan pengawasan & pendampingan pasien"
+
+df['rekomendasi'] = df.apply(generate_recommendation, axis=1)
+
+# =========================
+# PRIORITAS INTERVENSI
+# =========================
+st.subheader("🚨 Prioritas Intervensi")
+
+df['gap'] = df['kasus'] - df['pengobatan']
+df['skor_prioritas'] = (df['gap'] * 0.6) + ((100 - df['complete_rate']) * 0.4)
+
+top_priority = df.sort_values(by='skor_prioritas', ascending=False).head(5)
+
+fig_priority = px.bar(
+    top_priority,
+    x='skor_prioritas',
+    y='puskesmas',
+    orientation='h',
+    color='kategori',
+    text='skor_prioritas',
+    color_discrete_map={
+        'Baik': 'green',
+        'Sedang': 'orange',
+        'Rendah': 'red'
+    }
+)
+
+fig_priority.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+fig_priority.update_layout(yaxis=dict(autorange="reversed"))
+
+st.plotly_chart(fig_priority, use_container_width=True)
+
+# =========================
+# TABEL REKOMENDASI
+# =========================
+st.subheader("📋 Detail Rekomendasi")
+
+st.dataframe(
+    df[['puskesmas', 'kasus', 'pengobatan', 'complete_rate', 'kategori', 'rekomendasi']]
+    .sort_values(by='complete_rate')
+)
+
+# =========================
+# ALERT
+# =========================
+jumlah_rendah = len(df[df['kategori'] == 'Rendah'])
+
+if jumlah_rendah > 0:
+    st.error(f"⚠️ Terdapat {jumlah_rendah} puskesmas kategori RENDAH → perlu intervensi segera")
+else:
+    st.success("✅ Semua puskesmas dalam kondisi baik/sedang")
